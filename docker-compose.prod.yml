@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  myreads-backend:
+    image: mabdelgawad94/automagic_developer:myreads-backend
+    container_name: myreads-backend
+    pull_policy: always
+    restart: always
+    env_file:
+      - ./backend/.env.production
+      - ./backend/.secrets.production
+    environment:
+      - MODE=production
+    networks: [nginx_network]
+
+  myreads-frontend:
+    image: mabdelgawad94/automagic_developer:myreads-frontend
+    container_name: myreads-frontend
+    pull_policy: always
+    restart: always
+    env_file:
+      - ./frontend/.env.production     # non-secret but mounted for clarity
+    depends_on: [myreads-backend]
+    environment:
+      - MODE=production
+    networks: [nginx_network]
+
+networks:
+  nginx_network:
+    external: true                     # pre-existing reverse-proxy network

@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  myreads-backend:
+    build: ./backend
+    container_name: myreads-backend
+    env_file: ./backend/.env.production
+    restart: unless-stopped
+    networks: [nginx_network]
+
+  myreads-frontend:
+    build:
+      context: ./frontend
+    container_name: myreads-frontend
+    env_file: ./frontend/.env.production
+    depends_on: [myreads-backend]
+    restart: unless-stopped
+    networks: [nginx_network]
+
+networks:
+  nginx_network:
+    external: true
