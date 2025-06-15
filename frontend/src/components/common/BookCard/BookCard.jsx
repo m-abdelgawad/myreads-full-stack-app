@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 export default function BookCard({ book, onShelfChange }) {
 
-    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png"; // or any placeholder
+    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png";
 
     return (
         <div className="book-card draggable">

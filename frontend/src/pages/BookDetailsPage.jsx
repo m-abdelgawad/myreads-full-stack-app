@@ -50,13 +50,15 @@ export default function BookDetailsPage() {
     if (error  ) return <div className="container"><p className="error-msg">{error}</p></div>;
     if (!book  ) return null; // should not happen
 
+    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png";
+
     return (
         <div className="container">
             <Link to="/" className="btn-link">← Back</Link>
 
             <div className="book-details-card">
                 <div className="book-details-cover">
-                    <img src={book.imageLinks.thumbnail} alt={`${book.title} cover`} />
+                    <img src={ thumbnail } alt={`${book.title} cover`} />
                 </div>
 
                 <div className="book-details-info">
