@@ -44,6 +44,27 @@ MyReads is a comprehensive bookshelf management application that allows users to
 - **Authenticate** securely with JWT tokens (access + refresh)
 - **Scale** from development (SQLite) to production (PostgreSQL) seamlessly
 
+### Screenshots
+* Home Page
+
+![](.\readme_files\homepage.png)
+
+* Search Page
+
+![](.\readme_files\search.png)
+
+* Book Details Page
+
+![](.\readme_files\book_detail.png)
+
+* Login
+
+![](.\readme_files\login.png)
+
+* Sign Up
+
+![](.\readme_files\signup.png)
+
 ## 🏗️ Architecture Highlights
 
 - **Backend**: FastAPI with SQLAlchemy ORM, Alembic migrations, JWT authentication
