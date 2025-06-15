@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { useBooks } from "../context/BooksContext";
 import { api } from "../utils/api";
 import ShelfSelector from "../components/common/BookCard/ShelfSelector.jsx";
+import no_image_placeholder from "../assets/images/no_image_placeholder.png";
 
 export default function BookDetailsPage() {
     const { id } = useParams();            // 👉 book id from URL
@@ -50,7 +51,8 @@ export default function BookDetailsPage() {
     if (error  ) return <div className="container"><p className="error-msg">{error}</p></div>;
     if (!book  ) return null; // should not happen
 
-    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png";
+    // if thumbnail is not available, use a placeholder image from assets folder
+    const thumbnail = book.imageLinks?.thumbnail || no_image_placeholder;
 
     return (
         <div className="container">
@@ -63,7 +65,7 @@ export default function BookDetailsPage() {
 
                 <div className="book-details-info">
                     <h1 className="book-details-title">{book.title}</h1>
-                    <p className="book-details-authors">by {book.authors.join(", ")}</p>
+                    <p className="book-details-authors">by {book.authors.join(", ") || "Author name isn't available"}</p>
 
                     <div className="book-details-shelf">
                         <label htmlFor="current-shelf">Current Shelf:&nbsp;</label>
@@ -74,12 +76,11 @@ export default function BookDetailsPage() {
                         />
                     </div>
 
-                    {book.description && (
-                        <div className="book-details-description">
-                            <h3>Description</h3>
-                            <p>{book.description}</p>
-                        </div>
-                    )}
+                    <div className="book-details-description">
+                        <h3>Description</h3>
+                        {/*If book description is empty or null or white space(s), provide default value*/}
+                        <p>{book.description.trim() || "No description available."}</p>
+                    </div>
                 </div>
             </div>
         </div>

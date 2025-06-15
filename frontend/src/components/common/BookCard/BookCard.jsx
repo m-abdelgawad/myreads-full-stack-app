@@ -1,9 +1,10 @@
 import ShelfSelector from "./ShelfSelector.jsx";
 import { Link } from "react-router-dom";
+import no_image_placeholder from "../../../assets/images/no_image_placeholder.png";
 
 export default function BookCard({ book, onShelfChange }) {
 
-    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png";
+    const thumbnail = book.imageLinks?.thumbnail || no_image_placeholder;
 
     return (
         <div className="book-card draggable">
@@ -17,7 +18,7 @@ export default function BookCard({ book, onShelfChange }) {
                         { book.title }
                     </Link>
                 </h3>
-                <p className="book-authors">{ book.authors.join(', ') }</p>
+                <p className="book-authors">{ book.authors.join(', ') || "Author name isn't available"}</p>
             </div>
             <ShelfSelector
                 value={ book.shelf || '' }
