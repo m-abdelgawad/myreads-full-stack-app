@@ -2,11 +2,14 @@ import ShelfSelector from "./ShelfSelector.jsx";
 import { Link } from "react-router-dom";
 
 export default function BookCard({ book, onShelfChange }) {
+
+    const thumbnail = book.imageLinks?.thumbnail || "https://oregonbravo.org/wp-content/uploads/2023/06/No-Image-Placeholder.svg_.png"; // or any placeholder
+
     return (
         <div className="book-card draggable">
             <div className="book-cover">
                 {/* Note how we must close the img tag with /, while the original file didn't have that */}
-                <img src={ book.imageLinks.thumbnail } alt={ book.title } />
+                <img src={ thumbnail } alt={ book.title } />
             </div>
             <div className="book-info">
                 <h3 className="book-title">
