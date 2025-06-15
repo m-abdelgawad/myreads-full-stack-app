@@ -75,6 +75,9 @@ __pypackages__/
 
 .expo
 __generated__
+root_summary.txt
+frontend_summary.txt
+backend_summary.txt
 
 ### NextJS template
 # dependencies
