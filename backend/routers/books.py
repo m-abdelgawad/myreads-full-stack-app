@@ -20,7 +20,7 @@ from schemas.book import Book, ImageLinks
 # Pydantic payloads
 # ────────────────────────────────────────────────────────────────────
 class ShelfUpdate(BaseModel):
-    shelf: Optional[str] = None  # null / "" clears shelf
+    shelf: Optional[str] = None           # null / "" clears shelf
 
 
 class SearchPayload(BaseModel):
@@ -29,17 +29,13 @@ class SearchPayload(BaseModel):
 
 
 # ────────────────────────────────────────────────────────────────────
-router = APIRouter(
-    prefix="/books",
-    tags=["books"],
-)
-# Every route still requires JWT via function parameter `user: User = Security(...)`
+router = APIRouter(prefix="/books", tags=["books"])
+# (Each route still has user: User = Security(get_current_user))
 
 # ────────────────────────────────────────────────────────────────────
 # Helpers
 # ────────────────────────────────────────────────────────────────────
 def to_schema(book: BookORM, shelf: Optional[str] = None) -> Book:
-    """ORM ➜ schema helper."""
     img = ImageLinks(thumbnail=book.thumbnail) if book.thumbnail else None
     authors = book.authors.split(", ") if book.authors else []
     return Book(
@@ -55,6 +51,39 @@ def to_schema(book: BookORM, shelf: Optional[str] = None) -> Book:
 def _shelf_for(user_id: str, book_id: str, db: Session) -> Optional[str]:
     row = db.query(Pivot.shelf).filter_by(user_id=user_id, book_id=book_id).first()
     return row[0] if row else None
+
+
+# ────────────────────────────────────────────────────────────────────
+# SEARCH (declare BEFORE /{book_id} to avoid 404)
+# ────────────────────────────────────────────────────────────────────
+def _run_search(db: Session, user: User, query: str, max_results: int) -> List[Book]:
+    q = f"%{query.lower()}%"
+    hits = (
+        db.query(BookORM)
+        .filter((BookORM.title.ilike(q)) | (BookORM.authors.ilike(q)))
+        .limit(max_results)
+        .all()
+    )
+    return [to_schema(b, _shelf_for(user.id, b.id, db)) for b in hits]
+
+
+@router.post("/search", response_model=List[Book])
+def search_post(
+    payload: SearchPayload,
+    db: Session = Depends(get_db),
+    user: User = Security(get_current_user),
+):
+    return _run_search(db, user, payload.query, payload.maxResults)
+
+
+@router.get("/search", response_model=List[Book])
+def search_get(
+    query: str = Query(..., min_length=1),
+    maxResults: int = 20,
+    db: Session = Depends(get_db),
+    user: User = Security(get_current_user),
+):
+    return _run_search(db, user, query, maxResults)
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -94,7 +123,7 @@ def move_book(
 
     pivot = db.query(Pivot).filter_by(user_id=user.id, book_id=book_id).first()
 
-    # Clear shelf
+    # clear shelf
     if payload.shelf in {None, "", "null"}:
         if pivot:
             db.delete(pivot)
@@ -102,7 +131,7 @@ def move_book(
         book = db.query(BookORM).filter(BookORM.id == book_id).first()
         return to_schema(book)
 
-    # Upsert pivot
+    # upsert pivot
     if not pivot:
         pivot = Pivot(user_id=user.id, book_id=book_id, shelf=payload.shelf)
         db.add(pivot)
@@ -112,36 +141,3 @@ def move_book(
 
     book = db.query(BookORM).filter(BookORM.id == book_id).first()
     return to_schema(book, payload.shelf)
-
-
-# ────────────────────────────────────────────────────────────────────
-# SEARCH  (supports both POST-JSON and GET-query)
-# ────────────────────────────────────────────────────────────────────
-def _run_search(db: Session, user: User, query: str, max_results: int) -> List[Book]:
-    q = f"%{query.lower()}%"
-    hits = (
-        db.query(BookORM)
-        .filter((BookORM.title.ilike(q)) | (BookORM.authors.ilike(q)))
-        .limit(max_results)
-        .all()
-    )
-    return [to_schema(b, _shelf_for(user.id, b.id, db)) for b in hits]
-
-
-@router.post("/search", response_model=List[Book])
-def search_post(
-    payload: SearchPayload,
-    db: Session = Depends(get_db),
-    user: User = Security(get_current_user),
-):
-    return _run_search(db, user, payload.query, payload.maxResults)
-
-
-@router.get("/search", response_model=List[Book])
-def search_get(
-    query: str = Query(..., min_length=1),
-    maxResults: int = 20,
-    db: Session = Depends(get_db),
-    user: User = Security(get_current_user),
-):
-    return _run_search(db, user, query, maxResults)
