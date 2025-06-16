@@ -4,26 +4,33 @@ import { api } from "../utils/api";
 import BookCard from "../components/common/BookCard/BookCard.jsx";
 
 export default function SearchPage() {
-  useEffect(() => { document.title = "Search | MyReads"; }, []);
+  /* ───────────────── document title ───────────────── */
+  useEffect(() => {
+    document.title = "Search | MyReads";
+  }, []);
 
-  const { updateBookShelf } = useBooks();      // we still reuse the global updater
+  /* ───────────────── context + state ───────────────── */
+  const { updateBookShelf } = useBooks();   // global updater
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [updatingId, setUpdatingId] = useState(null); // for UI disable
 
-  /* ------- debounce search ------- */
+  /* ───────────────── debounce search ───────────────── */
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed === "") {              // ✨ show nothing on first load / empty query
+    if (trimmed === "") {
       setResults([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const id = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
-        const data = await api.get(`/books/search?query=${encodeURIComponent(trimmed)}&maxResults=20`);
+        const data = await api.get(
+          `/books/search?query=${encodeURIComponent(trimmed)}&maxResults=20`
+        );
         setResults(data);
       } catch (err) {
         console.error(err);
@@ -31,15 +38,30 @@ export default function SearchPage() {
       } finally {
         setLoading(false);
       }
-    }, 300); // debounce 300 ms
+    }, 300);
 
-    return () => clearTimeout(id);
+    return () => clearTimeout(timer);
   }, [query]);
 
+  /* ───────────────── shelf change wrapper ───────────────── */
+  const handleShelfChange = async (bookId, newShelf) => {
+    try {
+      setUpdatingId(bookId);
+      await updateBookShelf(bookId, newShelf);           // backend + global
+      // Patch local results so drop-down shows new value immediately
+      setResults(prev =>
+        prev.map(b => (b.id === bookId ? { ...b, shelf: newShelf } : b))
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  /* ───────────────── render ───────────────── */
   return (
     <div className="container">
       <div className="search-section">
-
+        {/* input */}
         <div className="search-input-container">
           <input
             className="search-input"
@@ -49,7 +71,8 @@ export default function SearchPage() {
           />
         </div>
 
-        {query.trim() !== "" && (     /* render only after user types */
+        {/* results */}
+        {query.trim() !== "" && (
           <div className="search-results">
             <h2 className="search-results-title">Search Results</h2>
 
@@ -61,7 +84,8 @@ export default function SearchPage() {
                   <BookCard
                     key={book.id}
                     book={book}
-                    onShelfChange={updateBookShelf}
+                    onShelfChange={handleShelfChange}
+                    disabled={updatingId === book.id}   // optional prop to grey-out select
                   />
                 ))}
               </div>
@@ -70,7 +94,6 @@ export default function SearchPage() {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
