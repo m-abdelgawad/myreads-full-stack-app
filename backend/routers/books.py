@@ -1,7 +1,14 @@
+"""
+routers/books.py
+─────────────────
+FastAPI router for book & shelf operations.
+"""
+
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Security
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
 
 from core.dependencies import get_db, get_current_user
 from models.book import Book as BookORM
@@ -9,21 +16,30 @@ from models.bookshelf import UserBookShelf as Pivot
 from models.user import User
 from schemas.book import Book, ImageLinks
 
-
+# ────────────────────────────────────────────────────────────────────
+# Pydantic payloads
+# ────────────────────────────────────────────────────────────────────
 class ShelfUpdate(BaseModel):
-    shelf: Optional[str] = None
+    shelf: Optional[str] = None  # null / "" clears shelf
 
 
+class SearchPayload(BaseModel):
+    query: str
+    maxResults: int = 20
+
+
+# ────────────────────────────────────────────────────────────────────
 router = APIRouter(
     prefix="/books",
     tags=["books"],
-    dependencies=[Security(get_current_user)],          # every op needs JWT
 )
+# Every route still requires JWT via function parameter `user: User = Security(...)`
 
-
-# ─── helpers ────────────────────────────────────────────────────
-def to_schema(book: BookORM, shelf: str | None = None) -> Book:
-    """Convert ORM row → Pydantic schema, attaching the user-specific shelf."""
+# ────────────────────────────────────────────────────────────────────
+# Helpers
+# ────────────────────────────────────────────────────────────────────
+def to_schema(book: BookORM, shelf: Optional[str] = None) -> Book:
+    """ORM ➜ schema helper."""
     img = ImageLinks(thumbnail=book.thumbnail) if book.thumbnail else None
     authors = book.authors.split(", ") if book.authors else []
     return Book(
@@ -36,28 +52,23 @@ def to_schema(book: BookORM, shelf: str | None = None) -> Book:
     )
 
 
-def _shelf_for(user_id: str, book_id: str, db: Session) -> str | None:
-    """Return the shelf this user assigned to the book (or None)."""
+def _shelf_for(user_id: str, book_id: str, db: Session) -> Optional[str]:
     row = db.query(Pivot.shelf).filter_by(user_id=user_id, book_id=book_id).first()
     return row[0] if row else None
 
 
-# ─── GET /books/  –  SHOW EVERY BOOK  ───────────────────────────
+# ────────────────────────────────────────────────────────────────────
+# CRUD
+# ────────────────────────────────────────────────────────────────────
 @router.get("", response_model=List[Book])
 def list_books(
     db: Session = Depends(get_db),
     user: User = Security(get_current_user),
 ):
-    """
-    Return **all** books in the database.
-    If the current user previously moved a book to a shelf,
-    that shelf is included; otherwise `shelf=None`.
-    """
-    books = db.query(BookORM).all()                     # ← removed inner-join
+    books = db.query(BookORM).all()
     return [to_schema(b, _shelf_for(user.id, b.id, db)) for b in books]
 
 
-# ─── GET /books/{id} ────────────────────────────────────────────
 @router.get("/{book_id}", response_model=Book)
 def get_book(
     book_id: str,
@@ -67,11 +78,9 @@ def get_book(
     book = db.query(BookORM).filter(BookORM.id == book_id).first()
     if not book:
         raise HTTPException(404, "Book not found")
-    shelf = _shelf_for(user.id, book_id, db)
-    return to_schema(book, shelf)
+    return to_schema(book, _shelf_for(user.id, book_id, db))
 
 
-# ─── PUT /books/{id} – (move to shelf / remove) ─────────────────
 @router.put("/{book_id}", response_model=Book)
 def move_book(
     book_id: str,
@@ -79,44 +88,60 @@ def move_book(
     db: Session = Depends(get_db),
     user: User = Security(get_current_user),
 ):
-    """
-    Store or clear the user-specific shelf in pivot table.
-    """
-    # Update validation to accept null, empty string, and "null"
-    if payload.shelf not in {"currentlyReading", "wantToRead", "read", "null", ""} and payload.shelf is not None:
+    valid = {"currentlyReading", "wantToRead", "read"}
+    if payload.shelf not in valid and payload.shelf not in {None, "", "null"}:
         raise HTTPException(400, "Invalid shelf value")
 
     pivot = db.query(Pivot).filter_by(user_id=user.id, book_id=book_id).first()
 
-    if payload.shelf == "null" or payload.shelf == "" or payload.shelf is None:
+    # Clear shelf
+    if payload.shelf in {None, "", "null"}:
         if pivot:
             db.delete(pivot)
             db.commit()
-        return to_schema(db.query(BookORM).filter(BookORM.id == book_id).first())
+        book = db.query(BookORM).filter(BookORM.id == book_id).first()
+        return to_schema(book)
 
+    # Upsert pivot
     if not pivot:
         pivot = Pivot(user_id=user.id, book_id=book_id, shelf=payload.shelf)
         db.add(pivot)
     else:
         pivot.shelf = payload.shelf
-
     db.commit()
-    return to_schema(db.query(BookORM).filter(BookORM.id == book_id).first())
+
+    book = db.query(BookORM).filter(BookORM.id == book_id).first()
+    return to_schema(book, payload.shelf)
 
 
-# ─── POST /books/search ────────────────────────────────────────
-@router.post("/search", response_model=List[Book])
-def search(
-    query: str,
-    maxResults: int = 20,
-    db: Session = Depends(get_db),
-    user: User = Security(get_current_user),
-):
+# ────────────────────────────────────────────────────────────────────
+# SEARCH  (supports both POST-JSON and GET-query)
+# ────────────────────────────────────────────────────────────────────
+def _run_search(db: Session, user: User, query: str, max_results: int) -> List[Book]:
     q = f"%{query.lower()}%"
     hits = (
         db.query(BookORM)
         .filter((BookORM.title.ilike(q)) | (BookORM.authors.ilike(q)))
-        .limit(maxResults)
+        .limit(max_results)
         .all()
     )
     return [to_schema(b, _shelf_for(user.id, b.id, db)) for b in hits]
+
+
+@router.post("/search", response_model=List[Book])
+def search_post(
+    payload: SearchPayload,
+    db: Session = Depends(get_db),
+    user: User = Security(get_current_user),
+):
+    return _run_search(db, user, payload.query, payload.maxResults)
+
+
+@router.get("/search", response_model=List[Book])
+def search_get(
+    query: str = Query(..., min_length=1),
+    maxResults: int = 20,
+    db: Session = Depends(get_db),
+    user: User = Security(get_current_user),
+):
+    return _run_search(db, user, query, maxResults)
