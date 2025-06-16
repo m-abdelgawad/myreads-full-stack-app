@@ -23,7 +23,7 @@ export default function SearchPage() {
     setLoading(true);
     const id = setTimeout(async () => {
       try {
-        const data = await api.post("/books/search", { query: trimmed, maxResults: 20 });
+        const data = await api.get(`/books/search?query=${encodeURIComponent(trimmed)}&maxResults=20`);
         setResults(data);
       } catch (err) {
         console.error(err);
