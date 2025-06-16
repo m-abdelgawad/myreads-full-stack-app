@@ -141,3 +141,16 @@ def move_book(
 
     book = db.query(BookORM).filter(BookORM.id == book_id).first()
     return to_schema(book, payload.shelf)
+
+@router.get("/shelved", response_model=List[Book])
+def list_shelved(
+    db: Session = Depends(get_db),
+    user: User = Security(get_current_user),
+):
+    rows = (
+        db.query(BookORM)
+        .join(Pivot, Pivot.book_id == BookORM.id)
+        .filter(Pivot.user_id == user.id)
+        .all()
+    )
+    return [to_schema(b, _shelf_for(user.id, b.id, db)) for b in rows]
