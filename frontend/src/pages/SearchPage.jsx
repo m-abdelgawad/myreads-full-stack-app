@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useBooks } from "../context/BooksContext";
-import api from "../utils/api";
+import { api } from "../utils/api";
 import BookCard from "../components/common/BookCard/BookCard.jsx";
 
 export default function SearchPage() {
