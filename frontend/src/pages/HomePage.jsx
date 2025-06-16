@@ -28,7 +28,7 @@ export default function HomePage() {
     async function fetchBooks() {
       try {
         setLoading(true);
-        const data = await api.get("/books/shelved");
+        const data = await api.get("/books");
         setBooks(data);
       } catch (err) {
         console.error(err);
